@@ -2,7 +2,7 @@ module github.com/aliensero/go-lotus-interaction
 
 go 1.14
 
-replace github.com/filecoin-project/filecoin-ffi => /home/vm/src/lotus/extern/filecoin-ffi
+replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 require (
 	github.com/BurntSushi/toml v0.3.1
