@@ -21,11 +21,22 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var ClientDealCmd = &cli.Command{
-	Name:      "deal",
-	Usage:     "deal",
+	Name:  "deal",
+	Usage: "deal",
+	Subcommands: []*cli.Command{
+		ClientDealSubMakeCmd,
+		ClientDealSubListCmd,
+		ClientDealSubInterCmd,
+	},
+}
+
+var ClientDealSubMakeCmd = &cli.Command{
+	Name:      "make",
+	Usage:     "deal make",
 	ArgsUsage: "[inputfile minerActor]",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetFullNodeAPI(cctx)
@@ -33,7 +44,48 @@ var ClientDealCmd = &cli.Command{
 			return err
 		}
 		defer closer()
+		if cctx.NArg() != 2 {
+			return xerrors.New("Usage: deal <inputfile> <minerActor>")
+		}
+		path := cctx.Args().Get(0)
+		actor := cctx.Args().Get(1)
+		cid, err := importFucn(cctx, api, path)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		err = dealFunc(cctx, api, cid, actor)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
 
+		return nil
+	},
+}
+
+var ClientDealSubListCmd = &cli.Command{
+	Name:  "list",
+	Usage: "deal list",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		return listDealFunc(cctx, api)
+	},
+}
+
+var ClientDealSubInterCmd = &cli.Command{
+	Name:  "inter",
+	Usage: "deal inter",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
 		for {
 			helpFunc()
 			fmt.Print("select:")
@@ -42,7 +94,13 @@ var ClientDealCmd = &cli.Command{
 			fmt.Println("")
 			switch op {
 			case "1":
-				cid, actor, err := importFucn(cctx, api)
+				var path, actor string
+
+				fmt.Print("inputfile:")
+				fmt.Scanln(&path)
+				fmt.Print("minerActor:")
+				fmt.Scanln(&actor)
+				cid, err := importFucn(cctx, api, path)
 				if err != nil {
 					fmt.Println(err)
 					continue
@@ -67,20 +125,13 @@ var ClientDealCmd = &cli.Command{
 	},
 }
 
-func importFucn(cctx *cli.Context, api lapi.FullNode) (string, string, error) {
+func importFucn(cctx *cli.Context, api lapi.FullNode, path string) (string, error) {
 	cid := ""
-	var path, actor string
-
-	fmt.Print("inputfile:")
-	fmt.Scanln(&path)
-	fmt.Print("minerActor:")
-	fmt.Scanln(&actor)
-
 	ctx := lcli.ReqContext(cctx)
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return cid, actor, errors.New("Get asbPath error:" + err.Error())
+		return cid, errors.New("Get asbPath error:" + err.Error())
 	}
 
 	ref := lapi.FileRef{
@@ -89,16 +140,16 @@ func importFucn(cctx *cli.Context, api lapi.FullNode) (string, string, error) {
 	}
 	c, err := api.ClientImport(ctx, ref)
 	if err != nil {
-		return cid, actor, errors.New("Import error:" + err.Error())
+		return cid, errors.New("Import error:" + err.Error())
 	}
 	encoder, err := lcli.GetCidEncoder(cctx)
 	if err != nil {
-		return cid, actor, errors.New("Get cidEncoder error:" + err.Error())
+		return cid, errors.New("Get cidEncoder error:" + err.Error())
 	}
 	cid = encoder.Encode(c)
-	fmt.Printf("cid: %s, actor:%s\n", cid, actor)
+	fmt.Printf("cid: %s\n", cid)
 
-	return cid, actor, nil
+	return cid, nil
 }
 
 func dealFunc(cctx *cli.Context, api lapi.FullNode, dataCid, actor string) error {
